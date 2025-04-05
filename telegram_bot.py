@@ -1,5 +1,5 @@
 import io
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import os
 import pickle
 import cv2
@@ -9,6 +9,8 @@ import nest_asyncio
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 nest_asyncio.apply()
 load_dotenv()
@@ -20,22 +22,22 @@ DATA_FILE = "known_faces.pkl"
 WAITING_IMAGE, WAITING_NAME, WAITING_RECOGNITION_IMAGE = range(3)
 
 # In-memory database (loaded from file at startup)
-known_face_encodings = []
-known_face_names = []
+# Structure: {name: [face_encoding1, face_encoding2, ...]}
+known_faces = {}
 
 def save_known_faces():
     with open(DATA_FILE, "wb") as f:
-        pickle.dump((known_face_encodings, known_face_names), f)
+        pickle.dump(known_faces, f)
 
 def load_known_faces():
-    global known_face_encodings, known_face_names
+    global known_faces
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "rb") as f:
-                known_face_encodings, known_face_names = pickle.load(f)
+                known_faces = pickle.load(f)
         except EOFError:
             print("Warning: known_faces.pkl is empty or corrupted. Starting fresh.")
-            known_face_encodings, known_face_names = [], []
+            known_faces = {}
 
 # Initial loading
 load_known_faces()
@@ -64,9 +66,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WAITING_RECOGNITION_IMAGE
 
     elif text == "Reset faces":
-        global known_face_encodings, known_face_names
-        known_face_encodings = []
-        known_face_names = []
+        global known_faces
+        known_faces = {}
         save_known_faces()
         await update.message.reply_text("All faces have been forgotten.", reply_markup=main_keyboard)
         return ConversationHandler.END
@@ -93,14 +94,21 @@ async def handle_add_face_image(update: Update, context: ContextTypes.DEFAULT_TY
     return WAITING_NAME
 
 async def handle_add_face_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global known_faces
     name = update.message.text
-    known_face_encodings.append(context.user_data["new_face_encoding"])
-    known_face_names.append(name)
+    encoding = context.user_data["new_face_encoding"]
+
+    if name in known_faces:
+        known_faces[name].append(encoding)
+    else:
+        known_faces[name] = [encoding]
+
     save_known_faces()
     await update.message.reply_text("Great. I will now remember this face.", reply_markup=main_keyboard)
     return ConversationHandler.END
 
 async def handle_recognition_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global known_faces
     photo = await update.message.photo[-1].get_file()
     image_path = "temp_recognize.jpg"
     await photo.download_to_drive(image_path)
@@ -110,8 +118,8 @@ async def handle_recognition_image(update: Update, context: ContextTypes.DEFAULT
         await update.message.reply_text("❗ I failed to load the image file. It might be in an unsupported format or corrupted.", reply_markup=main_keyboard)
         os.remove(image_path)
         return ConversationHandler.END
-    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
+    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     face_locations = face_recognition.face_locations(rgb_image)
 
     if not face_locations:
@@ -120,32 +128,51 @@ async def handle_recognition_image(update: Update, context: ContextTypes.DEFAULT
         return ConversationHandler.END
 
     face_encodings = face_recognition.face_encodings(rgb_image, face_locations)
-
     recognized_names = []
+
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-        matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
-        name = "Unknown"
+        best_match_name = "Unknown"
+        best_distance = float("inf")
 
-        face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
-        if len(face_distances) > 0 and min(face_distances) < 0.5:
-            best_match_index = np.argmin(face_distances)
-            name = known_face_names[best_match_index]
+        # Compare this encoding with all known encodings
+        for name, encodings in known_faces.items():
+            distances = face_recognition.face_distance(encodings, face_encoding)
+            if len(distances) == 0:
+                continue
+            min_distance = np.min(distances)
+            if min_distance < 0.5 and min_distance < best_distance:
+                best_distance = min_distance
+                best_match_name = name
 
-        recognized_names.append(name)
-        # Draw bounding box
+        recognized_names.append(best_match_name)
+
+        # Draw bounding box using OpenCV
         cv2.rectangle(image, (left, top), (right, bottom), (255, 0, 0), 2)
-        cv2.putText(image, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
 
-    # Save and send annotated image
-    result_path = "recognized_result.jpg"
-    # Resize if image is too wide (e.g., >1280px)
+    # Resize image if needed
     if image.shape[1] > 1280:
         scale_ratio = 1280 / image.shape[1]
         image = cv2.resize(image, (0, 0), fx=scale_ratio, fy=scale_ratio)
 
-    # Convert image (BGR → RGB) and encode it in memory using Pillow
+    # Convert to RGB and use PIL for Unicode-safe text rendering
     image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     pil_image = Image.fromarray(image_rgb)
+    draw = ImageDraw.Draw(pil_image)
+
+    try:
+        font = ImageFont.truetype("arial.ttf", 32)  # Use a font that supports Hebrew
+    except:
+        font = ImageFont.load_default()
+
+    for (top, right, bottom, left), name in zip(face_locations, recognized_names):
+        # Reshape and reverse name if it's in Hebrew (RTL)
+        reshaped_text = arabic_reshaper.reshape(name)
+        bidi_text = get_display(reshaped_text)
+
+        # Draw in blue with larger font
+        draw.text((left, top - 40), bidi_text, font=font, fill=(0, 0, 255))
+
+    # Save and send the annotated image
     bio = io.BytesIO()
     bio.name = 'recognized.jpg'
     pil_image.save(bio, 'JPEG')
@@ -181,15 +208,15 @@ if __name__ == "__main__":
         states={
             WAITING_IMAGE: [
                 MessageHandler(filters.PHOTO, handle_add_face_image),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),  # allow button press override
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),
             ],
             WAITING_NAME: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_add_face_name),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),  # override with button
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),
             ],
             WAITING_RECOGNITION_IMAGE: [
                 MessageHandler(filters.PHOTO, handle_recognition_image),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),  # override with button
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
