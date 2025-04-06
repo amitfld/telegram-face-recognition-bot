@@ -90,8 +90,17 @@ main_keyboard = ReplyKeyboardMarkup([
 ], resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Choose an option:", 
-                                    reply_markup=main_keyboard)
+    # Send the risograph poster image
+    try:
+        with open("Bot-Risograph.png", "rb") as poster:
+            await update.message.reply_photo(
+                photo=poster,
+                caption="Welcome to ScanYourFaceBot!\nHere's what I can do 🧠👆"
+            )
+    except Exception as e:
+        await update.message.reply_text("Welcome to ScanYourFaceBot!")
+    # Then send the keyboard
+    await update.message.reply_text("Choose an option:", reply_markup=main_keyboard)
 
 def remove_readonly(func, path, _):
     os.chmod(path, stat.S_IWRITE)
