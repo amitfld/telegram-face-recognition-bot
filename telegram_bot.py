@@ -19,11 +19,15 @@ BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DATA_FILE = "known_faces.pkl"
 
 # States for conversation
-WAITING_IMAGE, WAITING_NAME, WAITING_RECOGNITION_IMAGE = range(3)
+WAITING_IMAGE, WAITING_NAME, WAITING_RECOGNITION_IMAGE,WAITING_CELEB_LOOKUP_IMAGE = range(4)
 
 # In-memory database (loaded from file at startup)
-# Structure: {name: [face_encoding1, face_encoding2, ...]}
+# Known Faces - Structure: {name: [face_encoding1, face_encoding2, ...]}
 known_faces = {}
+# Celebs Encodings - Structure: {name: [face_encoding1, face_encoding2, ...]}
+celeb_encodings = {}
+# Celebs images - Structure: {name: [path_to_image_1, path_to_image_2, ...]}
+celeb_images = {}
 
 def save_known_faces():
     with open(DATA_FILE, "wb") as f:
@@ -39,17 +43,46 @@ def load_known_faces():
             print("Warning: known_faces.pkl is empty or corrupted. Starting fresh.")
             known_faces = {}
 
+def load_celeb_encodings(celebs_folder="celebs"):
+    global celeb_encodings, celeb_images
+
+    if not os.path.exists(celebs_folder):
+        print(f"⚠️ Celebs folder '{celebs_folder}' not found.")
+        return
+
+    for celeb_name in os.listdir(celebs_folder):
+        celeb_path = os.path.join(celebs_folder, celeb_name)
+        if not os.path.isdir(celeb_path):
+            continue
+
+        celeb_encodings[celeb_name] = []
+        celeb_images[celeb_name] = []
+
+        for img_file in os.listdir(celeb_path):
+            img_path = os.path.join(celeb_path, img_file)
+            try:
+                image = face_recognition.load_image_file(img_path)
+                encodings = face_recognition.face_encodings(image)
+                if len(encodings) > 0:
+                    celeb_encodings[celeb_name].append(encodings[0])
+                    celeb_images[celeb_name].append(img_path)
+            except Exception as e:
+                print(f"❌ Failed to process {img_path}: {e}")
+
 # Initial loading
 load_known_faces()
+load_celeb_encodings()
 
 main_keyboard = ReplyKeyboardMarkup([
     ["Add face"],
     ["Recognize faces"],
-    ["Reset faces"]
+    ["Reset faces"],
+    ["Similar celebs"]
 ], resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Choose an option:", reply_markup=main_keyboard)
+    await update.message.reply_text("Choose an option:", 
+                                    reply_markup=main_keyboard)
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Clear any stored user data and reset conversation state
@@ -58,22 +91,31 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
     if text == "Add face":
-        await update.message.reply_text("Upload an image with a single face", reply_markup=main_keyboard)
+        await update.message.reply_text("Upload an image with a single face", 
+                                        reply_markup=main_keyboard)
         return WAITING_IMAGE
 
     elif text == "Recognize faces":
-        await update.message.reply_text("Upload an image with at least one face and I will recognize who is in it", reply_markup=main_keyboard)
+        await update.message.reply_text("Upload an image with at least one face and I will recognize who is in it", 
+                                        reply_markup=main_keyboard)
         return WAITING_RECOGNITION_IMAGE
 
     elif text == "Reset faces":
         global known_faces
         known_faces = {}
         save_known_faces()
-        await update.message.reply_text("All faces have been forgotten.", reply_markup=main_keyboard)
+        await update.message.reply_text("All faces have been forgotten.", 
+                                        reply_markup=main_keyboard)
         return ConversationHandler.END
+    
+    elif text == "Similar celebs":
+        await update.message.reply_text("Upload me a picture of a single person and I will find which celebs are similar to that person.", 
+                                        reply_markup=main_keyboard)
+        return WAITING_CELEB_LOOKUP_IMAGE
 
     else:
-        await update.message.reply_text("Please choose one of the options from the keyboard.", reply_markup=main_keyboard)
+        await update.message.reply_text("Please choose one of the options from the keyboard.", 
+                                        reply_markup=main_keyboard)
         return ConversationHandler.END
 
 async def handle_add_face_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -196,6 +238,64 @@ async def handle_recognition_image(update: Update, context: ContextTypes.DEFAULT
     os.remove(image_path)
     return ConversationHandler.END
 
+async def handle_celeb_lookup_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    photo = await update.message.photo[-1].get_file()
+    image_path = "temp_celeb.jpg"
+    await photo.download_to_drive(image_path)
+
+    image = face_recognition.load_image_file(image_path)
+    encodings = face_recognition.face_encodings(image)
+
+    if len(encodings) != 1:
+        await update.message.reply_text("Please upload an image with exactly one clear face.", reply_markup=main_keyboard)
+        os.remove(image_path)
+        return ConversationHandler.END
+
+    input_encoding = encodings[0]
+
+    best_match_name = "Unknown"
+    best_distance = float("inf")
+
+    for name, encodings_list in celeb_encodings.items():
+        if not encodings_list:
+            continue
+        distances = face_recognition.face_distance(encodings_list, input_encoding)
+        min_distance = np.min(distances)
+        if min_distance < best_distance:
+            best_distance = min_distance
+            best_match_name = name
+
+    os.remove(image_path)
+
+    # Get one of the celeb's images to send back
+    celeb_image_path = celeb_images[best_match_name][0]  # you can randomize if you want
+    with open(celeb_image_path, 'rb') as f:
+        await update.message.reply_photo(photo=f)
+
+    # Build a feedback message based on resemblance quality
+    if best_distance < 0.54:
+        feedback = "✅ Wow! You really resemble"
+    elif best_distance < 0.60:
+        feedback = "🟡 You kind of look like"
+    elif best_distance < 0.68:
+        feedback = "⚠️ With some imagination, you resemble"
+    elif best_distance < 0.82:
+        feedback = "❓ It's a bit of a stretch, but you remind me of"
+    else:
+        feedback = "🤷‍♂️ Honestly, I don't see it — but here’s who you matched"
+    
+    similarity_percent = distance_to_similarity_percent(best_distance)
+    await update.message.reply_text(
+        f"{feedback} {best_match_name}\n(similarity: {similarity_percent}%)",
+        reply_markup=main_keyboard
+    )
+
+    return ConversationHandler.END
+
+def distance_to_similarity_percent(distance, min_threshold=0.35, max_threshold=0.8):
+    similarity = max(0.0, 1 - (distance - min_threshold) / (max_threshold - min_threshold))
+    return round(similarity * 100)
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Cancelled.", reply_markup=main_keyboard)
     return ConversationHandler.END
@@ -218,6 +318,10 @@ if __name__ == "__main__":
                 MessageHandler(filters.PHOTO, handle_recognition_image),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),
             ],
+            WAITING_CELEB_LOOKUP_IMAGE: [
+                MessageHandler(filters.PHOTO, handle_celeb_lookup_image),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),
+],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
