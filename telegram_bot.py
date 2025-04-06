@@ -11,6 +11,13 @@ from telegram import Update, ReplyKeyboardMarkup, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, ConversationHandler
 import arabic_reshaper
 from bidi.algorithm import get_display
+import uuid
+import shutil
+import stat
+from sklearn.manifold import TSNE
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import matplotlib.pyplot as plt
+from collections import defaultdict
 
 nest_asyncio.apply()
 load_dotenv()
@@ -77,12 +84,17 @@ main_keyboard = ReplyKeyboardMarkup([
     ["Add face"],
     ["Recognize faces"],
     ["Reset faces"],
-    ["Similar celebs"]
+    ["Similar celebs"],
+    ["Map"]
 ], resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Choose an option:", 
                                     reply_markup=main_keyboard)
+
+def remove_readonly(func, path, _):
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Clear any stored user data and reset conversation state
@@ -103,6 +115,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "Reset faces":
         global known_faces
         known_faces = {}
+        # Delete saved face images folder
+        user_faces_dir = "user_faces"
+        if os.path.exists(user_faces_dir):
+            shutil.rmtree(user_faces_dir, onerror=remove_readonly)
+
         save_known_faces()
         await update.message.reply_text("All faces have been forgotten.", 
                                         reply_markup=main_keyboard)
@@ -112,6 +129,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Upload me a picture of a single person and I will find which celebs are similar to that person.", 
                                         reply_markup=main_keyboard)
         return WAITING_CELEB_LOOKUP_IMAGE
+    
+    elif text == "Map":
+        await update.message.reply_text("Generating the face similarity map... please wait ⏳")
+        await generate_and_send_map(update)
+        return ConversationHandler.END
 
     else:
         await update.message.reply_text("Please choose one of the options from the keyboard.", 
@@ -125,29 +147,57 @@ async def handle_add_face_image(update: Update, context: ContextTypes.DEFAULT_TY
 
     image = face_recognition.load_image_file(image_path)
     encodings = face_recognition.face_encodings(image)
+    face_locations = face_recognition.face_locations(image)
 
     if len(encodings) != 1:
         await update.message.reply_text("Please send an image with exactly one face.", reply_markup=main_keyboard)
+        os.remove(image_path)
         return ConversationHandler.END
 
-    context.user_data["new_face_encoding"] = encodings[0]
+    encoding = encodings[0]
+    top, right, bottom, left = face_locations[0]
+    face_crop = image[top:bottom, left:right]
+    pil_face = Image.fromarray(face_crop)
+
+    # Save cropped image
+    face_dir = "user_faces"
+    os.makedirs(face_dir, exist_ok=True)
+    filename = os.path.join(face_dir, f"{uuid.uuid4()}.jpg")
+    pil_face.save(filename)
+
+    # Save to context
+    context.user_data["new_face_encoding"] = encoding
+    context.user_data["new_face_image_path"] = filename
+
     os.remove(image_path)
     await update.message.reply_text("Great. What’s the name of the person in this image?")
     return WAITING_NAME
 
 async def handle_add_face_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global known_faces
-    name = update.message.text
+    name = update.message.text.strip()
     encoding = context.user_data["new_face_encoding"]
+    original_path = context.user_data["new_face_image_path"]
 
-    if name in known_faces:
-        known_faces[name].append(encoding)
-    else:
-        known_faces[name] = [encoding]
+    # Ensure directory exists for this person's folder
+    person_dir = os.path.join("user_faces", name)
+    os.makedirs(person_dir, exist_ok=True)
+
+    # Move the image into the person's folder with a cleaner name
+    new_filename = f"{uuid.uuid4()}.jpg"
+    new_path = os.path.join(person_dir, new_filename)
+    os.rename(original_path, new_path)
+
+    # Store (encoding, image path)
+    if name not in known_faces:
+        known_faces[name] = []
+    known_faces[name].append((encoding, new_path))
 
     save_known_faces()
+
     await update.message.reply_text("Great. I will now remember this face.", reply_markup=main_keyboard)
     return ConversationHandler.END
+
 
 async def handle_recognition_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global known_faces
@@ -286,7 +336,7 @@ async def handle_celeb_lookup_image(update: Update, context: ContextTypes.DEFAUL
     
     similarity_percent = distance_to_similarity_percent(best_distance)
     await update.message.reply_text(
-        f"{feedback} {best_match_name}\n(similarity: {similarity_percent}%)",
+        f"{feedback} {best_match_name}.\n(similarity: {similarity_percent}%)",
         reply_markup=main_keyboard
     )
 
@@ -299,6 +349,94 @@ def distance_to_similarity_percent(distance, min_threshold=0.35, max_threshold=0
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Cancelled.", reply_markup=main_keyboard)
     return ConversationHandler.END
+
+async def generate_and_send_map(update: Update):
+    if not known_faces and not celeb_encodings:
+        await update.message.reply_text("I don’t have any faces to map yet.")
+        return
+
+    # Combine all encodings, labels, image paths
+    all_encodings = []
+    all_labels = []
+    all_image_paths = []
+
+    for name, enc_list in known_faces.items():
+        for item in enc_list:
+            if isinstance(item, tuple):
+                encoding, img_path = item
+            else:
+                encoding = item
+                img_path = None
+            all_encodings.append(encoding)
+            all_labels.append(name)
+            all_image_paths.append(img_path)
+
+    for name, enc_list in celeb_encodings.items():
+        for i, encoding in enumerate(enc_list):
+            all_encodings.append(encoding)
+            all_labels.append(name)
+            all_image_paths.append(celeb_images[name][i])
+
+    # Reduce dimensions
+    X = np.array(all_encodings)
+    X_2d = TSNE(n_components=2, random_state=42, perplexity=10, learning_rate=200).fit_transform(X) * 10
+
+    # Group indices
+    name_to_indices = defaultdict(list)
+    for i, name in enumerate(all_labels):
+        name_to_indices[name].append(i)
+
+    # Spread similar names
+    spread = 12.0
+    for indices in name_to_indices.values():
+        for j, idx in enumerate(indices):
+            angle = (2 * np.pi * j) / len(indices)
+            dx = np.cos(angle) * spread
+            dy = np.sin(angle) * spread
+            X_2d[idx][0] += dx
+            X_2d[idx][1] += dy
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(12, 10))
+    ax.set_title("Face Similarity Map (similar faces are positioned closer)")
+
+    def get_thumbnail(img_path, zoom=0.35, size=(60, 60)):
+        img = Image.open(img_path).convert("RGB")
+        img = img.resize(size, Image.Resampling.LANCZOS)
+        bordered = Image.new("RGB", (size[0] + 4, size[1] + 4), "white")
+        bordered.paste(img, (2, 2))
+        return OffsetImage(np.array(bordered), zoom=zoom)
+
+    # Draw images
+    for i, (x, y) in enumerate(X_2d):
+        img_path = all_image_paths[i]
+        if img_path and os.path.exists(img_path):
+            try:
+                imagebox = get_thumbnail(img_path)
+                ab = AnnotationBbox(imagebox, (x, y), frameon=False)
+                ax.add_artist(ab)
+            except Exception as e:
+                print(f"⚠️ Error loading {img_path}: {e}")
+
+    # Draw name labels above each cluster
+    for name, indices in name_to_indices.items():
+        highest_idx = min(indices, key=lambda i: X_2d[i][1])
+        x, y = X_2d[highest_idx]
+        ax.text(x, y + 35, name, fontsize=4, ha="center",
+                bbox=dict(facecolor='white', alpha=0.9, edgecolor='black'))
+
+    ax.set_xlim(X_2d[:, 0].min() - 50, X_2d[:, 0].max() + 50)
+    ax.set_ylim(X_2d[:, 1].min() - 50, X_2d[:, 1].max() + 50)
+    plt.axis('off')
+
+    # Save and send
+    output_path = "similarity_map.jpg"
+    plt.savefig(output_path, dpi=150)
+    plt.close()
+
+    with open(output_path, "rb") as f:
+        await update.message.reply_photo(photo=f)
+
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()

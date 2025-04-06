@@ -3,3 +3,4 @@ __pycache__/
 .env
 known_faces.pkl
 celebs
+user_faces
