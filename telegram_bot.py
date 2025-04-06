@@ -26,7 +26,7 @@ BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 DATA_FILE = "known_faces.pkl"
 
 # States for conversation
-WAITING_IMAGE, WAITING_NAME, WAITING_RECOGNITION_IMAGE,WAITING_CELEB_LOOKUP_IMAGE = range(4)
+WAITING_IMAGE, WAITING_NAME, WAITING_RECOGNITION_IMAGE, WAITING_CELEB_LOOKUP_IMAGE, WAITING_FIRST_IMAGE, WAITING_SECOND_IMAGE = range(6)
 
 # In-memory database (loaded from file at startup)
 # Known Faces - Structure: {name: [face_encoding1, face_encoding2, ...]}
@@ -85,7 +85,8 @@ main_keyboard = ReplyKeyboardMarkup([
     ["Recognize faces"],
     ["Reset faces"],
     ["Similar celebs"],
-    ["Map"]
+    ["Map"],
+    ["Similarity check"]
 ], resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -134,6 +135,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Generating the face similarity map... please wait ⏳")
         await generate_and_send_map(update)
         return ConversationHandler.END
+    
+    elif text == "Similarity check":
+        await update.message.reply_text("Please send the first image with exactly one clear face.")
+        return WAITING_FIRST_IMAGE
 
     else:
         await update.message.reply_text("Please choose one of the options from the keyboard.", 
@@ -342,9 +347,72 @@ async def handle_celeb_lookup_image(update: Update, context: ContextTypes.DEFAUL
 
     return ConversationHandler.END
 
+async def handle_first_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    photo = await update.message.photo[-1].get_file()
+    image_path = "temp_first.jpg"
+    await photo.download_to_drive(image_path)
+
+    image = face_recognition.load_image_file(image_path)
+    encodings = face_recognition.face_encodings(image)
+
+    if len(encodings) != 1:
+        await update.message.reply_text("❗ Please upload an image with exactly one clear face.")
+        os.remove(image_path)
+        return ConversationHandler.END
+
+    context.user_data["first_encoding"] = encodings[0]
+    os.remove(image_path)
+
+    await update.message.reply_text("✅ Got it. Now please send the second image.")
+    return WAITING_SECOND_IMAGE
+
+async def handle_second_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    photo = await update.message.photo[-1].get_file()
+    image_path = "temp_second.jpg"
+    await photo.download_to_drive(image_path)
+
+    image = face_recognition.load_image_file(image_path)
+    encodings = face_recognition.face_encodings(image)
+
+    if len(encodings) != 1:
+        await update.message.reply_text("❗ Please upload an image with exactly one clear face.")
+        os.remove(image_path)
+        return ConversationHandler.END
+
+    second_encoding = encodings[0]
+    first_encoding = context.user_data.get("first_encoding")
+    os.remove(image_path)
+
+    if first_encoding is None:
+        await update.message.reply_text("❌ Something went wrong. Please start again.", reply_markup=main_keyboard)
+        return ConversationHandler.END
+
+    distance = face_recognition.face_distance([first_encoding], second_encoding)[0]
+    similarity = distance_to_similarity_percent(distance)
+
+    # Feedback message (you can customize this scale)
+    if similarity >= 85:
+        feedback = "✅ These faces look very similar!"
+    elif similarity >= 70:
+        feedback = "🟡 There's a decent resemblance."
+    elif similarity >= 50:
+        feedback = "⚠️ Some similarity, but not a strong match."
+    else:
+        feedback = "❌ These faces don’t look very similar."
+
+    await update.message.reply_text(
+        f"{feedback}\nSimilarity: {similarity}%",
+        reply_markup=main_keyboard
+    )
+
+    context.user_data.clear()
+    return ConversationHandler.END
+
+
 def distance_to_similarity_percent(distance, min_threshold=0.35, max_threshold=0.8):
-    similarity = max(0.0, 1 - (distance - min_threshold) / (max_threshold - min_threshold))
-    return round(similarity * 100)
+    raw = 1 - (distance - min_threshold) / (max_threshold - min_threshold)
+    clamped = min(1.0, max(0.0, raw))  # Clamp between 0 and 1
+    return round(clamped * 100)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Cancelled.", reply_markup=main_keyboard)
@@ -459,7 +527,15 @@ if __name__ == "__main__":
             WAITING_CELEB_LOOKUP_IMAGE: [
                 MessageHandler(filters.PHOTO, handle_celeb_lookup_image),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),
-],
+            ],
+            WAITING_FIRST_IMAGE: [
+                MessageHandler(filters.PHOTO, handle_first_image),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),
+            ],
+            WAITING_SECOND_IMAGE: [
+                MessageHandler(filters.PHOTO, handle_second_image),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text),
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
