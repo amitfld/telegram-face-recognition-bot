@@ -242,11 +242,13 @@ async def handle_recognition_image(update: Update, context: ContextTypes.DEFAULT
 
         # Compare this encoding with all known encodings
         for name, encodings in known_faces.items():
-            distances = face_recognition.face_distance(encodings, face_encoding)
+
+            only_encodings = [enc for (enc, _) in encodings]
+            distances = face_recognition.face_distance(only_encodings, face_encoding)
             if len(distances) == 0:
                 continue
             min_distance = np.min(distances)
-            if min_distance < 0.5 and min_distance < best_distance:
+            if min_distance < 0.45 and min_distance < best_distance:
                 best_distance = min_distance
                 best_match_name = name
 
@@ -400,9 +402,9 @@ async def handle_second_image(update: Update, context: ContextTypes.DEFAULT_TYPE
     similarity = distance_to_similarity_percent(distance)
 
     # Feedback message (you can customize this scale)
-    if similarity >= 85:
+    if similarity >= 72:
         feedback = "✅ These faces look very similar!"
-    elif similarity >= 70:
+    elif similarity >= 65:
         feedback = "🟡 There's a decent resemblance."
     elif similarity >= 50:
         feedback = "⚠️ Some similarity, but not a strong match."
