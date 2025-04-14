@@ -248,10 +248,10 @@ async def handle_recognition_image(update: Update, context: ContextTypes.DEFAULT
             if len(distances) == 0:
                 continue
             min_distance = np.min(distances)
-            if min_distance < 0.45 and min_distance < best_distance:
+            if min_distance < 0.48 and min_distance < best_distance:
                 best_distance = min_distance
                 best_match_name = name
-
+        #if best_match_name != "Unknown":
         recognized_names.append(best_match_name)
 
         # Draw bounding box using OpenCV
@@ -271,8 +271,11 @@ async def handle_recognition_image(update: Update, context: ContextTypes.DEFAULT
         font = ImageFont.truetype("arial.ttf", 32)  # Use a font that supports Hebrew
     except:
         font = ImageFont.load_default()
-
+    # Drawing text loop
     for (top, right, bottom, left), name in zip(face_locations, recognized_names):
+        # skip if name is Unknown
+        if name == "Unknown":
+            continue
         # Reshape and reverse name if it's in Hebrew (RTL)
         reshaped_text = arabic_reshaper.reshape(name)
         bidi_text = get_display(reshaped_text)
@@ -296,8 +299,9 @@ async def handle_recognition_image(update: Update, context: ContextTypes.DEFAULT
     if all(name == "Unknown" for name in recognized_names):
         await update.message.reply_text("I don’t recognize anyone in this image.", reply_markup=main_keyboard)
     else:
+        recognized_names = [name for name in recognized_names if name != "Unknown"]
         await update.message.reply_text(
-            f"I found {len(face_locations)} face(s). The people are: {', '.join(recognized_names)}",
+            f"I found {len(face_locations)} face(s).\nThe people I recognize are:\n{', '.join(recognized_names)}",
             reply_markup=main_keyboard
         )
 
