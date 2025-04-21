@@ -4,3 +4,4 @@ __pycache__/
 known_faces.pkl
 celebs
 user_faces
+similarity_map.jpg
