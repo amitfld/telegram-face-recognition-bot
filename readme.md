@@ -71,30 +71,6 @@ The bot allows any user to:
 
 ---
 
-## 🗂️ Folder Structure
-
-```bash
-.
-├── bot/
-│   ├── telegram_bot.py
-│   ├── face_similarity_map.py
-│   ├── face_utils.py
-│   └── ...
-├── celebs/
-│   ├── Celebrity1/
-│   │   ├── img1.jpg
-│   │   └── img2.jpg
-│   ├── Celebrity2/
-│   └── ...
-├── faces_data/
-│   └── (saved encodings + cropped face images)
-├── .env
-├── requirements.txt
-└── README.md
-```
-
----
-
 ## 🔒 Security
 ✅ **NO hardcoded tokens or API keys.**  
 Tokens are securely stored in the `.env` file and loaded using `dotenv`.
