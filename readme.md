@@ -1,6 +1,6 @@
 # Telegram Face Recognition Bot 🤖📸
 
-![Project Risograph](Bot-Risograph.png)
+<img src="Bot-Risograph.png" alt="Project Risograph" width="400"/>
 
 Welcome to the **Telegram Face Recognition Bot**! This project is part of the *"From Idea to Reality Using AI"* course and combines cutting-edge face recognition technology with a fully interactive Telegram bot.
 
