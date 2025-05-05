@@ -8,7 +8,7 @@ The bot allows any user to:
 - **Reset all known faces** 🔄
 - **Find similar celebrities** 🕵️‍♂️⭐
 - **Generate a similarity map** of all known and celebrity faces 🗺️
-- **Get similarity check for 2 people**
+- **Get similarity check for 2 people**👩‍👦
 
 ---
 
