@@ -85,9 +85,13 @@ The bot allows any user to:
 └── README.md
 ```
 
+---
+
 ## 🔒 Security
 ✅ **NO hardcoded tokens or API keys.**  
 Tokens are securely stored in the `.env` file and loaded using `dotenv`.
+
+---
 
 ## 🙌 Acknowledgments
 This project is part of the From Idea to Reality Using AI course. Thanks to the instructor for guidance and to the open-source community for the incredible libraries that made this possible.
