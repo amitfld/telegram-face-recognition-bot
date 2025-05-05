@@ -8,18 +8,20 @@ The bot allows any user to:
 - **Reset all known faces** 🔄
 - **Find similar celebrities** 🕵️‍♂️⭐
 - **Generate a similarity map** of all known and celebrity faces 🗺️
+- **Get similarity check for 2 people**
 
 ---
 
 ## 🚀 Features
 
-| Feature                | Description                                                                                              |
-|------------------------|----------------------------------------------------------------------------------------------------------|
-| **Add Face**           | Upload an image of a single face, name the person, and the bot stores their face encoding.               |
-| **Recognize Faces**    | Upload a photo with one or more faces, and the bot recognizes who appears in the image (if known).       |
-| **Reset Faces**        | Clears all previously stored faces and resets the bot's memory.                                          |
-| **Similar Celebs**     | Upload a face, and the bot finds the most visually similar celebrity from a pre-loaded celeb database.   |
+| Feature                | Description                                                                                                    |
+|------------------------|----------------------------------------------------------------------------------------------------------------|
+| **Add Face**           | Upload an image of a single face, name the person, and the bot stores their face encoding.                     |
+| **Recognize Faces**    | Upload a photo with one or more faces, and the bot recognizes who appears in the image (if known).             |
+| **Reset Faces**        | Clears all previously stored faces and resets the bot's memory.                                                |
+| **Similar Celebs**     | Upload a face, and the bot finds the most visually similar celebrity from a pre-loaded celeb database.         |
 | **Map**                | Generates a 2D map (using t-SNE) of all known and celebrity faces, showing how similar they are to each other. |
+| **Similarity Check**   | Upload 2 images with a single face each, and the bot replies with theie similarity level (0% - 100$)           |
 
 ---
 
@@ -60,6 +62,10 @@ The bot allows any user to:
 5️⃣ **Map**
 - All stored faces (user-added and celebrities) are plotted using t-SNE dimensionality reduction.
 - A visual map is generated showing clusters of similar faces.
+
+6️⃣ **Similarity Check**
+- The user uploads 2 images, each containing one face.
+- Their similarity level is being presented in percentage
 
 ---
 
