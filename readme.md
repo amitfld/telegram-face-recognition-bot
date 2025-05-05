@@ -21,7 +21,7 @@ The bot allows any user to:
 | **Reset Faces**        | Clears all previously stored faces and resets the bot's memory.                                                |
 | **Similar Celebs**     | Upload a face, and the bot finds the most visually similar celebrity from a pre-loaded celeb database.         |
 | **Map**                | Generates a 2D map (using t-SNE) of all known and celebrity faces, showing how similar they are to each other. |
-| **Similarity Check**   | Upload 2 images with a single face each, and the bot replies with theie similarity level (0% - 100$)           |
+| **Similarity Check**   | Upload 2 images with a single face each, and the bot replies with theie similarity level (0% - 100%)           |
 
 ---
 
