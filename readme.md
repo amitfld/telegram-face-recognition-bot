@@ -81,3 +81,14 @@ Tokens are securely stored in the `.env` file and loaded using `dotenv`.
 
 ## 🙌 Acknowledgments
 This project is part of the From Idea to Reality Using AI course. Thanks to the instructor for guidance and to the open-source community for the incredible libraries that made this possible.
+
+---
+
+## 👤 Author
+
+Made with ❤️ for the **"Idea to Reality" 2025 course.**
+
+GitHub: [@amitfld](https://github.com/amitfld)
+Linkdin: [Amit Feldman](www.linkedin.com/in/amit-fld)
+
+---
