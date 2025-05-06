@@ -90,6 +90,6 @@ Made with ❤️ for the **"Idea to Reality" 2025 course.**
 
 GitHub: [@amitfld](https://github.com/amitfld)
 
-Linkdin: [Amit Feldman](www.linkedin.com/in/amit-fld)
+LinkdIn: [Amit Feldman](www.linkedin.com/in/amit-fld)
 
 ---
