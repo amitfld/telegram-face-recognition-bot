@@ -89,6 +89,7 @@ This project is part of the From Idea to Reality Using AI course. Thanks to the 
 Made with ❤️ for the **"Idea to Reality" 2025 course.**
 
 GitHub: [@amitfld](https://github.com/amitfld)
+
 Linkdin: [Amit Feldman](www.linkedin.com/in/amit-fld)
 
 ---
