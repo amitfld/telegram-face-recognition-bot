@@ -73,6 +73,12 @@ The bot allows any user to:
 
 ---
 
+## Game Demo
+
+[![Traffic Racer Demo](thumbnail.png)](https://youtu.be/y7OUilidGZQ)
+
+---
+
 ## 🔒 Security
 ✅ **NO hardcoded tokens or API keys.**  
 Tokens are securely stored in the `.env` file and loaded using `dotenv`.
