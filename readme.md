@@ -2,7 +2,15 @@
 
 [➡️ Click here to try the bot on Telegram](https://t.me/ScanYourFaceBot)
 
-<img src="Bot-Risograph.png" alt="Project Risograph" width="400"/>
+
+## Bot Demo
+
+<a href="https://youtu.be/y7OUilidGZQ" target="_blank">
+<p><em>Click here or the Infographic below to watch the demo</em></p>
+    <img src="Bot-Risograph.png" alt="Bot Demo" width="400" />
+</a>
+
+---
 
 Welcome to the **Telegram Face Recognition Bot**! This project is part of the *"From Idea to Reality Using AI"* course and combines cutting-edge face recognition technology with a fully interactive Telegram bot.
 
@@ -70,15 +78,6 @@ The bot allows any user to:
 6️⃣ **Similarity Check**
 - The user uploads 2 images, each containing one face.
 - Their similarity level is being presented in percentage
-
----
-
-## Bot Demo
-
-<a href="https://youtu.be/y7OUilidGZQ" target="_blank">
-    <img src="thumbnail.png" alt="Bot Demo" style="width: 250px; height: auto;" />
-</a>
-
 
 ---
 
