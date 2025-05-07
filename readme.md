@@ -3,7 +3,7 @@
 [➡️ Click here to try the bot on Telegram](https://t.me/ScanYourFaceBot)
 
 
-## Bot Demo
+## 🎥 Bot Demo
 
 <a href="https://youtu.be/y7OUilidGZQ" target="_blank">
 <p><em>Click here or the Infographic below to watch the demo</em></p>
