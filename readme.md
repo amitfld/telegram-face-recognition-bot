@@ -73,9 +73,12 @@ The bot allows any user to:
 
 ---
 
-## Game Demo
+## Bot Demo
 
-[![Traffic Racer Demo](thumbnail.png)](https://youtu.be/y7OUilidGZQ)
+<a href="https://youtu.be/y7OUilidGZQ" target="_blank">
+    <img src="thumbnail.png" alt="Bot Demo" style="width: 250px; height: auto;" />
+</a>
+
 
 ---
 
