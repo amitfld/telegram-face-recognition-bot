@@ -18,9 +18,14 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Install dlib first (from source)
-RUN pip install --upgrade pip && \
-    CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5" pip install dlib==19.24.2
+# set the CMake policy flag globally for all subsequent RUN steps
+ENV CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+
+# upgrade pip
+RUN pip install --upgrade pip
+
+# now this pip install will pick up $CMAKE_ARGS in the build environment
+RUN pip install dlib==19.24.2
 
 # Now install everything else (WITHOUT dlib in requirements.txt)
 COPY requirements.txt .
