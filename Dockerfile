@@ -20,7 +20,7 @@ WORKDIR /app
 
 # Install dlib first (from source)
 RUN pip install --upgrade pip && \
-    pip install dlib==19.24.2
+    CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5" pip install dlib==19.24.2
 
 # Now install everything else (WITHOUT dlib in requirements.txt)
 COPY requirements.txt .
