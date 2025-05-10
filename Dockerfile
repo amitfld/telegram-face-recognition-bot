@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.13-slim
 
 # Install system packages required for dlib and face_recognition
 RUN apt-get update && apt-get install -y \
