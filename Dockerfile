@@ -20,7 +20,8 @@ WORKDIR /app
 
 # First install the prebuilt dlib wheel
 RUN pip install --upgrade pip && \
-    pip install dlib==19.24.2 --only-binary=:all:
+    pip install "https://github.com/RPi-Distro/python-dlib/releases/download/19.24.2/dlib-19.24.2-cp311-cp311-manylinux_2_28_x86_64.whl"
+
 
 
 
