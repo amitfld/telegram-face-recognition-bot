@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Install system packages required for dlib and face_recognition
+# 1) Install system deps required by dlib/face_recognition
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -13,25 +13,21 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     libtiff-dev \
     libpng-dev \
-    && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# set the CMake policy flag globally for all subsequent RUN steps
+# 2) Export CMAKE_ARGS so pip’s build backend sees it
 ENV CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
-# upgrade pip
-RUN pip install --upgrade pip
+# 3) Upgrade pip and install dlib (will pick up $CMAKE_ARGS)
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir dlib==19.24.2
 
-# now this pip install will pick up $CMAKE_ARGS in the build environment
-RUN pip install dlib==19.24.2
-
-# Now install everything else (WITHOUT dlib in requirements.txt)
+# 4) Install remaining dependencies (make sure requirements.txt does not include dlib)
 COPY requirements.txt .
-RUN pip install -r requirements.txt
-# Copy bot code
-COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Run your bot
+# 5) Copy your bot’s code and set the default command
+COPY . .
 CMD ["python", "bot.py"]
