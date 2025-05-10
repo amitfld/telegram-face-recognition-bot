@@ -18,9 +18,12 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Install Python packages
+# First install the prebuilt dlib wheel
+RUN pip install --upgrade pip && \
+    pip install "https://github.com/RPi-Distro/python-dlib/releases/download/19.22.99/dlib-19.22.99-cp311-cp311-manylinux_2_28_x86_64.whl"
+
+# Now install other Python dependencies
 COPY requirements.txt .
-RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 # Copy bot code
