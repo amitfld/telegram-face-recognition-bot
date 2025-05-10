@@ -20,7 +20,8 @@ WORKDIR /app
 
 # First install the prebuilt dlib wheel
 RUN pip install --upgrade pip && \
-    pip install "https://dlib.net/files/dlib-19.24.2-cp311-cp311-manylinux_2_17_x86_64.whl"
+    pip install dlib==19.24.2 --only-binary=:all:
+
 
 
 # Now install other Python dependencies
