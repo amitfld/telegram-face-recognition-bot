@@ -18,11 +18,13 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+# Install dlib first (from source)
+RUN pip install --upgrade pip && \
+    pip install dlib==19.24.2
 
+# Now install everything else (WITHOUT dlib in requirements.txt)
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 # Copy bot code
 COPY . .
 
