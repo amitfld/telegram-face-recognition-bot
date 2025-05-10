@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # Install system packages required for dlib and face_recognition
 RUN apt-get update && apt-get install -y \
@@ -18,15 +18,9 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# First install the prebuilt dlib wheel
-RUN pip install --upgrade pip && \
-    pip install "https://github.com/RPi-Distro/python-dlib/releases/download/19.24.2/dlib-19.24.2-cp311-cp311-manylinux_2_28_x86_64.whl"
-
-
-
-
-# Now install other Python dependencies
+# Install Python dependencies
 COPY requirements.txt .
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 # Copy bot code
